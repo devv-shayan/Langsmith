@@ -3,14 +3,15 @@ import tempfile
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.sitemap import SitemapLoader
 from langchain_community.vectorstores import SKLearnVectorStore
-from langchain_openai import OpenAIEmbeddings
+from langchain.embeddings import SentenceTransformerEmbeddings
 from langsmith import traceable
-from openai import OpenAI
+from groq import Groq
+
 from typing import List
 import nest_asyncio
 
-MODEL_NAME = "gpt-4o-mini"
-MODEL_PROVIDER = "openai"
+MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_PROVIDER = "groq"
 APP_VERSION = 1.0
 RAG_SYSTEM_PROMPT = """You are an assistant for question-answering tasks. 
 Use the following pieces of retrieved context to answer the latest question in the conversation. 
@@ -18,11 +19,11 @@ If you don't know the answer, just say that you don't know.
 Use three sentences maximum and keep the answer concise.
 """
 
-openai_client = OpenAI()
+client = Groq()
 
 def get_vector_db_retriever():
     persist_path = os.path.join(tempfile.gettempdir(), "union.parquet")
-    embd = OpenAIEmbeddings()
+    embd = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # If vector store exists, then load it
     if os.path.exists(persist_path):
@@ -64,7 +65,7 @@ def retrieve_documents(question: str):
 
 """
 generate_response
-- Calls `call_openai` to generate a model response after formatting inputs
+- Calls `call_llm` to generate a model response after formatting inputs
 """
 @traceable(run_type="chain")
 def generate_response(question: str, documents):
@@ -79,10 +80,10 @@ def generate_response(question: str, documents):
             "content": f"Context: {formatted_docs} \n\n Question: {question}"
         }
     ]
-    return call_openai(messages)
+    return call_llm(messages)
 
 """
-call_openai
+call_llm
 - Returns the chat completion output from OpenAI
 """
 @traceable(
@@ -92,8 +93,8 @@ call_openai
         "ls_model_name": MODEL_NAME
     }
 )
-def call_openai(messages: List[dict]) -> str:
-    return openai_client.chat.completions.create(
+def call_llm(messages: List[dict]) -> str:
+    return client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
     )
